@@ -12,4 +12,4 @@ text = pytesseract.image_to_string(gray)
 print("----- RAW OCR OUTPUT -----")
 lines = [line.strip() for line in text.splitlines() if line.strip()]
 cleaned = "\n".join(lines)
-print(cleaned)
+print(text)
