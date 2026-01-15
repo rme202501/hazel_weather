@@ -1,105 +1,121 @@
 import pandas as pd
-import os
 from datetime import datetime
-import pytz
+from zoneinfo import ZoneInfo
+import sys
+import os
 
-def convert_csv_to_utc(csv_file_path, output_file_path=None):
+def convert_boston_to_utc(input_csv, output_csv=None):
     """
-    Convert EST date/time to UTC timestamps in a CSV file.
+    Convert date and time from Boston (Eastern Time) to UTC.
     
     Args:
-        csv_file_path: Path to the input CSV file
-        output_file_path: Path to save the output CSV (if None, adds _utc to filename)
+        input_csv: Path to input CSV file with 'date' and 'time' columns
+        output_csv: Path to output CSV file (optional, defaults to input_utc.csv)
     """
+    # Set default output filename if not provided
+    if output_csv is None:
+        base_name = os.path.splitext(input_csv)[0]
+        output_csv = f"{base_name}_utc.csv"
     
-    # Read the CSV
-    df = pd.read_csv(csv_file_path)
-    
-    # Extract year and month from the file path (e.g., "1-08bos" -> January)
-    filename = os.path.basename(os.path.dirname(csv_file_path))
-    parts = filename.split('-')
-    month = int(parts[0])
-    day = int(parts[1].replace('bos', '').replace('hnl', ''))
-    
-    # Assume year is 2026 (adjust if needed)
-    year = 2026
+    # Read the CSV file
+    df = pd.read_csv(input_csv)
     
     # Define timezones
-    est = pytz.timezone('US/Eastern')
-    utc = pytz.UTC
+    boston_tz = ZoneInfo("America/New_York")
+    utc_tz = ZoneInfo("UTC")
     
-    # Convert each row
-    utc_timestamps = []
+    # Lists to store converted values
+    utc_dates = []
+    utc_times = []
     
-    for index, row in df.iterrows():
+    for idx, row in df.iterrows():
+        # Get date and time from row (handle different column name cases)
+        date_col = None
+        time_col = None
+        
+        for col in df.columns:
+            if col.lower() == 'date':
+                date_col = col
+            elif col.lower() == 'time':
+                time_col = col
+        
+        if date_col is None or time_col is None:
+            raise ValueError("CSV must have 'date' and 'time' columns")
+        
+        date_str = str(row[date_col])
+        time_str = str(row[time_col])
+        
+        # Pad time with leading zeros if needed (e.g., 800 -> 0800)
+        time_str = time_str.zfill(4)
+        
+        # Parse the date and time
+        # Try different date formats
+        date_formats = [
+            "%Y-%m-%d",  # 2025-12-26
+            "%m/%d/%Y",  # 12/26/2025
+            "%m-%d-%Y",  # 12-26-2025
+            "%d/%m/%Y",  # 26/12/2025
+            "%Y/%m/%d",  # 2025/12/26
+        ]
+        
+        parsed_date = None
+        for fmt in date_formats:
+            try:
+                parsed_date = datetime.strptime(date_str, fmt)
+                break
+            except ValueError:
+                continue
+        
+        if parsed_date is None:
+            raise ValueError(f"Could not parse date: {date_str}")
+        
+        # Parse time (military format: HHMM or HH:MM)
+        time_str_clean = time_str.replace(":", "")
+        time_str_clean = time_str_clean.zfill(4)
+        
         try:
-            date_str = str(int(row['Date']))
-            time_str = str(row['Time (EST)'])
-            
-            # Create datetime string in EST
-            datetime_str = f"{year}-{month:02d}-{date_str} {time_str}"
-            
-            # Parse as EST
-            dt_est = est.localize(datetime.strptime(datetime_str, "%Y-%m-%d %H:%M"))
-            
-            # Convert to UTC
-            dt_utc = dt_est.astimezone(utc)
-            
-            # Store as ISO format string
-            utc_timestamps.append(dt_utc.isoformat())
-            
-        except Exception as e:
-            print(f"Error converting row {index}: {e}")
-            utc_timestamps.append(None)
+            hours = int(time_str_clean[:2])
+            minutes = int(time_str_clean[2:4])
+        except ValueError:
+            raise ValueError(f"Could not parse time: {time_str}")
+        
+        # Create Boston datetime
+        boston_dt = datetime(
+            parsed_date.year,
+            parsed_date.month,
+            parsed_date.day,
+            hours,
+            minutes,
+            tzinfo=boston_tz
+        )
+        
+        # Convert to UTC
+        utc_dt = boston_dt.astimezone(utc_tz)
+        
+        # Format output
+        utc_dates.append(utc_dt.strftime("%Y-%m-%d"))
+        utc_times.append(utc_dt.strftime("%H%M"))  # Military time format
     
-    # Add the UTC column
-    df['UTC_Timestamp'] = utc_timestamps
+    # Create output dataframe
+    # Keep all original columns and add UTC columns
+    output_df = df.copy()
+    output_df['date_utc'] = utc_dates
+    output_df['time_utc'] = utc_times
     
-    # Optionally reorder columns to put UTC timestamp first
-    cols = ['UTC_Timestamp'] + [col for col in df.columns if col != 'UTC_Timestamp']
-    df = df[cols]
+    # Save to CSV
+    output_df.to_csv(output_csv, index=False)
+    print(f"Converted {len(df)} rows from Boston time to UTC")
+    print(f"Output saved to: {output_csv}")
     
-    # Save output
-    if output_file_path is None:
-        base, ext = os.path.splitext(csv_file_path)
-        output_file_path = f"{base}_utc{ext}"
-    
-    df.to_csv(output_file_path, index=False)
-    print(f"Saved converted file to: {output_file_path}")
-    
-    return df
-
-def batch_convert_all_csvs(base_dir):
-    """
-    Convert all CSV files in the data directory to UTC.
-    
-    Args:
-        base_dir: Base directory containing subdirectories with CSV files
-    """
-    
-    data_dir = os.path.join(base_dir, 'data')
-    
-    if not os.path.exists(data_dir):
-        print(f"Data directory not found: {data_dir}")
-        return
-    
-    # Find all CSV files
-    for root, dirs, files in os.walk(data_dir):
-        for file in files:
-            if file.endswith('.csv') and 'extracted' in file:
-                csv_path = os.path.join(root, file)
-                print(f"Converting: {csv_path}")
-                try:
-                    convert_csv_to_utc(csv_path)
-                except Exception as e:
-                    print(f"Error processing {csv_path}: {e}")
-
+    return output_df
 
 if __name__ == "__main__":
-    # Convert single file
-    csv_file = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\data\1-08bos\1-08extractedWeather.csv"
-    convert_csv_to_utc(csv_file)
+    if len(sys.argv) < 2:
+        print("Usage: python convert_to_utc.py <input_csv> [output_csv]")
+        print("Example: python convert_to_utc.py weather_data.csv weather_data_utc.csv")
+        sys.exit(1)
     
-    # Or convert all extracted weather CSVs
-    # base_dir = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather"
-    # batch_convert_all_csvs(base_dir)
+    input_file = sys.argv[1]
+    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    
+    convert_boston_to_utc(input_file, output_file)
