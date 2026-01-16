@@ -1,121 +1,67 @@
-import pandas as pd
-from datetime import datetime
-from zoneinfo import ZoneInfo
+import csv
+from datetime import datetime, timedelta
 import sys
-import os
 
-def convert_boston_to_utc(input_csv, output_csv=None):
+def add_5_hours_to_csv(input_file, output_file):
     """
-    Convert date and time from Boston (Eastern Time) to UTC.
+    Reads a CSV file and adds 5 hours to the time in the 2nd column.
+    If the time exceeds 24 hours, adds a day to the date in the 1st column 
+    and adjusts the time accordingly.
     
     Args:
-        input_csv: Path to input CSV file with 'date' and 'time' columns
-        output_csv: Path to output CSV file (optional, defaults to input_utc.csv)
+        input_file: Path to the input CSV file
+        output_file: Path to the output CSV file
     """
-    # Set default output filename if not provided
-    if output_csv is None:
-        base_name = os.path.splitext(input_csv)[0]
-        output_csv = f"{base_name}_utc.csv"
+    with open(input_file, 'r', newline='', encoding='utf-8') as infile:
+        reader = csv.reader(infile)
+        rows = list(reader)
     
-    # Read the CSV file
-    df = pd.read_csv(input_csv)
+    # Process the data (skip header if present)
+    modified_rows = []
+    header = rows[0]
+    modified_rows.append(header)
     
-    # Define timezones
-    boston_tz = ZoneInfo("America/New_York")
-    utc_tz = ZoneInfo("UTC")
-    
-    # Lists to store converted values
-    utc_dates = []
-    utc_times = []
-    
-    for idx, row in df.iterrows():
-        # Get date and time from row (handle different column name cases)
-        date_col = None
-        time_col = None
-        
-        for col in df.columns:
-            if col.lower() == 'date':
-                date_col = col
-            elif col.lower() == 'time':
-                time_col = col
-        
-        if date_col is None or time_col is None:
-            raise ValueError("CSV must have 'date' and 'time' columns")
-        
-        date_str = str(row[date_col])
-        time_str = str(row[time_col])
-        
-        # Pad time with leading zeros if needed (e.g., 800 -> 0800)
-        time_str = time_str.zfill(4)
-        
-        # Parse the date and time
-        # Try different date formats
-        date_formats = [
-            "%Y-%m-%d",  # 2025-12-26
-            "%m/%d/%Y",  # 12/26/2025
-            "%m-%d-%Y",  # 12-26-2025
-            "%d/%m/%Y",  # 26/12/2025
-            "%Y/%m/%d",  # 2025/12/26
-        ]
-        
-        parsed_date = None
-        for fmt in date_formats:
-            try:
-                parsed_date = datetime.strptime(date_str, fmt)
-                break
-            except ValueError:
-                continue
-        
-        if parsed_date is None:
-            raise ValueError(f"Could not parse date: {date_str}")
-        
-        # Parse time (military format: HHMM or HH:MM)
-        time_str_clean = time_str.replace(":", "")
-        time_str_clean = time_str_clean.zfill(4)
+    for row in rows[1:]:
+        if len(row) < 2:
+            modified_rows.append(row)
+            continue
         
         try:
-            hours = int(time_str_clean[:2])
-            minutes = int(time_str_clean[2:4])
-        except ValueError:
-            raise ValueError(f"Could not parse time: {time_str}")
-        
-        # Create Boston datetime
-        boston_dt = datetime(
-            parsed_date.year,
-            parsed_date.month,
-            parsed_date.day,
-            hours,
-            minutes,
-            tzinfo=boston_tz
-        )
-        
-        # Convert to UTC
-        utc_dt = boston_dt.astimezone(utc_tz)
-        
-        # Format output
-        utc_dates.append(utc_dt.strftime("%Y-%m-%d"))
-        utc_times.append(utc_dt.strftime("%H%M"))  # Military time format
+            date_str = row[0]  # First column: date (e.g., "2026-01-08")
+            time_str = row[1]  # Second column: time (e.g., "12:54")
+            
+            # Combine date and time into a datetime object
+            datetime_str = f"{date_str} {time_str}"
+            dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+            
+            # Add 5 hours
+            new_dt = dt + timedelta(hours=5)
+            
+            # Split back into date and time
+            row[0] = new_dt.strftime("%Y-%m-%d")
+            row[1] = new_dt.strftime("%H:%M")
+            
+            modified_rows.append(row)
+            
+        except (ValueError, IndexError) as e:
+            print(f"Warning: Could not process row: {row}. Error: {e}")
+            modified_rows.append(row)
     
-    # Create output dataframe
-    # Keep all original columns and add UTC columns
-    output_df = df.copy()
-    output_df['date_utc'] = utc_dates
-    output_df['time_utc'] = utc_times
+    # Write the modified data to output file
+    with open(output_file, 'w', newline='', encoding='utf-8') as outfile:
+        writer = csv.writer(outfile)
+        writer.writerows(modified_rows)
     
-    # Save to CSV
-    output_df.to_csv(output_csv, index=False)
-    print(f"Converted {len(df)} rows from Boston time to UTC")
-    print(f"Output saved to: {output_csv}")
-    
-    return output_df
+    print(f"Successfully processed {len(modified_rows)-1} rows")
+    print(f"Output written to: {output_file}")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python convert_to_utc.py <input_csv> [output_csv]")
-        print("Example: python convert_to_utc.py weather_data.csv weather_data_utc.csv")
+    if len(sys.argv) != 3:
+        print("Usage: python add_5_hours.py <input_file> <output_file>")
+        print("Example: python add_5_hours.py input.csv output.csv")
         sys.exit(1)
     
     input_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
+    output_file = sys.argv[2]
     
-    convert_boston_to_utc(input_file, output_file)
+    add_5_hours_to_csv(input_file, output_file)
