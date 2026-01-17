@@ -57,8 +57,8 @@ def add_5_hours_to_csv(input_file, output_file):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python add_5_hours.py <input_file> <output_file>")
-        print("Example: python add_5_hours.py input.csv output.csv")
+        print("Usage: python convert_to_utc.py <input_file> <output_file>")
+        print("Example: python convert_to_utc.py input.csv output.csv")
         sys.exit(1)
     
     input_file = sys.argv[1]
