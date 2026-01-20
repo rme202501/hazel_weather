@@ -120,7 +120,7 @@ if __name__ == "__main__":
     data_base = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\data\cambridge"
     bos_folders = [
         "1-08bos", "1-09bos", "1-11bos", "1-12bos", 
-        "1-13bos", "1-14bos", "1-15bos", "1-16bos"
+        "1-13bos", "1-14bos", "1-15bos", "1-16bos", "1-17bos", "1-19bos"
     ]
     
     for folder in bos_folders:
