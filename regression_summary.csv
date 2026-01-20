@@ -1,0 +1,11 @@
+Metric,0.3um Model,CO2 Model
+R² Score,0.2703,0.3081
+RMSE,1089.1488,20.6017
+MAE,628.2095,13.5909
+Intercept,24862.5205,-64.1963
+Vis (MI),179.034698,1.958898
+Air Temp (F),56.391303,0.263828
+Dewpoint (F),-19.129060,-0.243256
+Rel Hum,15.318793,-0.099405
+Sea Level Pressure (MB),-26.987726,0.483049
+Prevailing Wind Magnitude (MPH),-76.618347,-2.301962

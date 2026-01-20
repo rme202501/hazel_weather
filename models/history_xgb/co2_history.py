@@ -1,0 +1,198 @@
+import xgboost as xgb
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+import pandas as pd
+import matplotlib.pyplot as plt
+import time
+import os
+import json
+from datetime import datetime
+
+# 1. Load Data
+pollution_data = pd.read_csv('history_aware_rolling.csv')
+weather_data = pd.read_csv('data/cambridge/bosweather/preprocessed_bos_weather_utc.csv')
+
+# Set weather_data index for efficient lookups
+weather_data_indexed = weather_data.set_index(weather_data.index)  # Use positional index
+
+# Define weather feature columns
+weather_feature_cols = ['Prevailing Wind Magnitude (MPH)', 'Gust Wind Magnitude (MPH)', 'Vis (MI)', 
+          'Cloud Height 1 (100s of ft)', 'Cloud Height 2 (100s of ft)', 'Cloud Height 3 (100s of ft)', 'Cloud Height 4 (100s of ft)', 
+          'Air Temp (F)', 'Dewpoint (F)', '6hr Max (F)', '6hr Min (F)', 'Rel Hum', 'Wind Chill (F)', 
+          'Heat Index (F)', 'Sea Level Pressure (MB)', 'Precip 1hr', 'Precip 3hr', 'Precip 6hr',
+          'cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
+
+def get_historical_weather_features(pollution_df, weather_df, history_steps=3):
+    """
+    Join pollution data with current and historical weather data.
+    
+    pollution_df: DataFrame with weather_idx, weather_idx_1, weather_idx_2, etc.
+    weather_df: DataFrame with weather features (indexed by row number)
+    history_steps: Number of historical steps to include (weather_idx_1, weather_idx_2, etc.)
+    """
+    X = pd.DataFrame(index=pollution_df.index)
+    
+    # Current weather (weather_idx) - filter out NaN values first
+    valid_current_idx = pollution_df['weather_idx'].notna()
+    if valid_current_idx.any():
+        current_weather = weather_df.loc[pollution_df.loc[valid_current_idx, 'weather_idx'].astype(int).values][weather_feature_cols].reset_index(drop=True)
+        current_weather.index = pollution_df.loc[valid_current_idx].index
+        current_weather.columns = [f'{col}_current' for col in weather_feature_cols]
+        X = X.join(current_weather, how='left')
+    
+    # Historical weather
+    for step in range(1, history_steps + 1):
+        idx_col = f'weather_idx_{step}'
+        if idx_col in pollution_df.columns:
+            # Filter out rows with NaN indices
+            valid_idx = pollution_df[idx_col].notna()
+            if valid_idx.any():
+                historical_weather = weather_df.loc[pollution_df.loc[valid_idx, idx_col].astype(int).values][weather_feature_cols].reset_index(drop=True)
+                # Align indices back to original pollution_df
+                temp_idx = pollution_df.loc[valid_idx].index
+                historical_weather.index = temp_idx
+                historical_weather.columns = [f'{col}_h{step}' for col in weather_feature_cols]
+                # Join, filling NaN for rows that didn't have valid historical indices
+                X = X.join(historical_weather, how='left')
+    
+    return X
+
+# Build feature matrix with historical weather data
+X = get_historical_weather_features(pollution_data, weather_data, history_steps=3)
+
+# Extract target from pollution data
+y = pollution_data['0.3um_rolling']
+
+# Drop rows where target or key indices are NaN
+valid_rows = (~y.isna()) & (~pollution_data['weather_idx'].isna())
+X = X[valid_rows]
+y = y[valid_rows]
+
+categorical_cols = ['cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
+
+train_split_ratio = 0.95
+train_split_point = int(len(X) * train_split_ratio)
+
+X_train = X.iloc[:train_split_point]
+y_train = y.iloc[:train_split_point]
+X_test = X.iloc[train_split_point:]
+y_test = y.iloc[train_split_point:]
+
+# 3. Initialize the Model
+# use XGBRegressor for predicting continuous numbers (prices, temp, etc.)
+model = xgb.XGBRegressor(
+    n_estimators=20,     # Number of trees
+    learning_rate=0.01,     # How much each tree contributes (step size)
+    max_depth=7,           # Depth of each tree (complexity)
+    objective='reg:squarederror', # Specify the learning task
+    eval_metric='rmse',    # Metric to evaluate during training
+    random_state=42
+)
+
+# 4. Train the Model
+print("="*60)
+print("Starting XGBoost Model Training...")
+print("="*60)
+print(f"Training samples: {len(X_train)}")
+print(f"Test samples: {len(X_test)}")
+print(f"Features: {X_train.shape[1]}")
+print(f"Trees to build: {model.n_estimators}")
+print("="*60)
+
+start_time = time.time()
+
+model.fit(
+    X_train, y_train,
+    eval_set=[(X_train, y_train), (X_test, y_test)],
+    verbose=10  # Print progress every 10 trees
+)
+
+training_time = time.time() - start_time
+print("="*60)
+print(f"Training completed in {training_time:.2f} seconds")
+print(f"Average time per tree: {training_time/model.n_estimators:.3f} seconds")
+print("="*60)
+
+# 6. Make Predictions
+print("\nMaking predictions on test set...")
+preds = model.predict(X_test)
+
+# 7. Evaluate
+print("\n" + "="*60)
+print("FINAL MODEL EVALUATION")
+print("="*60)
+mse = mean_squared_error(y_test, preds)
+r2 = r2_score(y_test, preds)
+rmse = mse ** 0.5
+print(f"Mean Squared Error (MSE): {mse:.2f}")
+print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
+print(f"R² Score: {r2:.4f}")
+print("="*60)
+
+# 5. Plot Training Progress
+print("\nGenerating training progress visualization...")
+results = model.evals_result()
+epochs = len(results['validation_0']['rmse'])
+x_axis = range(0, epochs)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(x_axis, results['validation_0']['rmse'], label='Train', linewidth=2)
+ax.plot(x_axis, results['validation_1']['rmse'], label='Validation', linewidth=2)
+ax.legend(fontsize=12)
+ax.set_ylabel('RMSE', fontsize=12)
+ax.set_xlabel('Epoch', fontsize=12)
+ax.set_title('0.3 um Prediction w/ Rolling Averages & Attention to History', fontsize=14, fontweight='bold')
+plt.grid(True, alpha=0.3)
+
+# Annotate final values
+final_train_rmse = results['validation_0']['rmse'][-1]
+final_test_rmse = results['validation_1']['rmse'][-1]
+ax.text(0.02, 0.98, f'Final Train RMSE: {final_train_rmse:.2f}\nFinal Validation RMSE: {final_test_rmse:.2f}\nFinal Validation R²: {r2:.4f}',
+        transform=ax.transAxes, verticalalignment='top',
+        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+plt.tight_layout()
+plt.show()
+print("Graph displayed successfully!")
+
+# 8. Save the Model
+print("\nSaving trained model...")
+model_dir = 'models/history_xgb/saved_models'
+os.makedirs(model_dir, exist_ok=True)
+
+# Generate filename with timestamp and metrics
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+model_filename = f'xgboost_0.3um_{timestamp}_rmse{rmse:.2f}_r2{r2:.4f}.json'
+model_path = os.path.join(model_dir, model_filename)
+
+# Save model
+model.save_model(model_path)
+print(f"Model saved to: {model_path}")
+
+# Save metrics
+metrics_filename = f'xgboost_0.3um_{timestamp}_metrics.json'
+metrics_path = os.path.join(model_dir, metrics_filename)
+
+metrics_data = {
+    'timestamp': timestamp,
+    'model_file': model_filename,
+    'metrics': {
+        'RMSE': float(rmse),
+        'R2': float(r2),
+        'MSE': float(mse)
+    },
+    'training_info': {
+        'training_samples': len(X_train),
+        'test_samples': len(X_test),
+        'n_features': X_train.shape[1],
+        'n_estimators': model.n_estimators,
+        'training_time_seconds': training_time
+    }
+}
+
+with open(metrics_path, 'w') as f:
+    json.dump(metrics_data, f, indent=4)
+
+print(f"Metrics saved to: {metrics_path}")
+print("="*60)
+print("\nTraining complete!")

@@ -16,6 +16,6 @@ for file in file_list:
 master_df = pd.concat(dfs, ignore_index=True)
 
 # 4. Save to a new file
-master_df.to_csv('merged_output.csv', index=False)
+master_df.to_csv('weatherid_merged_output.csv', index=False)
 
 print(f"Merged {len(file_list)} files into merged_output.csv")
