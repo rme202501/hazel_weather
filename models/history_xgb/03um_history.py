@@ -103,12 +103,25 @@ for col in categorical_feature_names:
         X[col] = X[col].astype('category')
 
 train_split_ratio = 0.8
-train_split_point = int(len(X) * train_split_ratio)
 
-X_train = X.iloc[:train_split_point].copy()
-y_train = y.iloc[:train_split_point].copy()
-X_test = X.iloc[train_split_point:].copy()
-y_test = y.iloc[train_split_point:].copy()
+# Split by weather_idx to keep all rows with same weather_idx together
+unique_weather_indices = pollution_data.loc[X.index, 'weather_idx'].unique()
+indices_list = list(unique_weather_indices)
+random.seed(42)
+random.shuffle(indices_list)
+
+# Split the unique indices
+train_split_point = int(len(indices_list) * train_split_ratio)
+train_weather_indices = set(indices_list[:train_split_point])
+
+# Create mask based on weather_idx for all rows in X/y
+train_mask = pollution_data.loc[X.index, 'weather_idx'].isin(train_weather_indices).values
+
+X_train = X[train_mask].copy()
+y_train = y[train_mask].copy()
+X_test = X[~train_mask].copy()
+y_test = y[~train_mask].copy()
+print(y_test)
 
 # Ensure categorical columns remain categorical after split
 for col in categorical_feature_names:
@@ -119,9 +132,9 @@ for col in categorical_feature_names:
 # 3. Initialize the Model
 # use XGBRegressor for predicting continuous numbers (prices, temp, etc.)
 model = xgb.XGBRegressor(
-    n_estimators=8,     # Number of trees
+    n_estimators=800,     # Number of trees
     learning_rate=0.01,     # How much each tree contributes (step size)
-    max_depth=2,           # Depth of each tree (complexity)
+    max_depth=10,           # Depth of each tree (complexity)
     objective='reg:squarederror', # Specify the learning task
     eval_metric='rmse',    # Metric to evaluate during training
     random_state=42,
