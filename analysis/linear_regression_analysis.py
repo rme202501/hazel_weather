@@ -11,13 +11,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 import seaborn as sns
+import math
 
 # ============================================================
 # CONFIGURATION - Set these paths and column names
 # ============================================================
-data_file = 'nohistory_rolling_average.csv'  # CSV with weather index
-weather_file = 'bos_weather_utc.csv'  # Weather data CSV
-weather_index_column = 'weather_id'  # Column name in data_file that references weather_file
+data_file = '8_chunked_output.csv'  # CSV with weather index
+weather_file = '4_preprocessed_bos_weather_utc.csv'  # Weather data CSV
+weather_index_column = 'weather_idx'  # Column name in data_file that references weather_file
 weather_id_column = 'id'  # Column name in weather_file that matches the weather index
 merge_on_index = True  # If True, merge on index position instead of columns
 
@@ -32,10 +33,10 @@ weather_df = pd.read_csv(weather_file)
 # Merge data with weather data
 print(f"\nMerging data with weather data...")
 if merge_on_index:
-    # Merge based on weather index column
+    # Merge weather_index_column onto weather_df row index
     if weather_index_column in df.columns:
-        print(f"Merging on '{weather_index_column}' (from data) with '{weather_id_column}' (from weather)...")
-        df = df.merge(weather_df, left_on=weather_index_column, right_on=weather_id_column, how='left')
+        print(f"Merging '{weather_index_column}' (from data) onto weather row index...")
+        df = df.merge(weather_df, left_on=weather_index_column, right_index=True, how='left')
         print(f"Data shape after merge: {df.shape}")
     else:
         print(f"Warning: '{weather_index_column}' not found in data file. Using data as-is.")
@@ -47,8 +48,10 @@ else:
     df = pd.concat([df, weather_df], axis=1)
 
 # Define the columns we're interested in
-target_vars = ['0.3um', 'co2']
-feature_vars = ['Vis (MI)', 'Air Temp (F)', 'Dewpoint (F)', 'Rel Hum', 'Sea Level Pressure (MB)', 'Precip 1hr']
+target_vars = ['um03_mean', 'co2_mean']
+um_col = 'um03_mean'
+co2_col = 'co2_mean'
+feature_vars = ['Vis (MI)', 'Air Temp (F)', 'Dewpoint (F)', 'Rel Hum', 'Sea Level Pressure (MB)', 'Precip 1hr', 'Prevailing Wind Magnitude (MPH)', 'time', 'Cloud Height 1 (100s of ft)']
 
 # Clean the data
 print("\nCleaning data...")
@@ -73,8 +76,8 @@ print(df_analysis.describe())
 
 # Prepare features (X) and targets (y)
 X = df_analysis[feature_vars]
-y_particle = df_analysis['0.3um']
-y_co2 = df_analysis['co2']
+y_particle = df_analysis[um_col]
+y_co2 = df_analysis[co2_col]
 
 # Split data into training and testing sets
 X_train, X_test, y_particle_train, y_particle_test = train_test_split(
@@ -149,18 +152,19 @@ print("="*60)
 correlation_matrix = df_analysis.corr()
 print("\nCorrelation with 0.3um:")
 for feature in feature_vars:
-    print(f"  {feature:30s}: {correlation_matrix.loc['0.3um', feature]:.4f}")
+    print(f"  {feature:30s}: {correlation_matrix.loc[um_col, feature]:.4f}")
 
 print("\nCorrelation with CO2:")
 for feature in feature_vars:
-    print(f"  {feature:30s}: {correlation_matrix.loc['co2', feature]:.4f}")
-
+    print(f"  {feature:30s}: {correlation_matrix.loc[co2_col, feature]:.4f}")
 # ============================================================
 # VISUALIZATIONS
 # ============================================================
 print("\n" + "="*60)
 print("Generating visualizations...")
 print("="*60)
+
+graphs_per_row = 3
 
 # Create figure for correlation heatmap
 plt.figure(figsize=(10, 8))
@@ -177,7 +181,13 @@ print("Saved visualization to 'linear_regression_results.png'")
 # ============================================================
 print("Generating individual linear fit plots for 0.3um...")
 
-fig2, axes2 = plt.subplots(2, 3, figsize=(16, 10))
+# Calculate grid dimensions based on number of features
+num_features = len(feature_vars)
+num_rows = math.ceil(num_features / graphs_per_row)
+figsize_height = 5 * num_rows
+figsize_width = 5 * graphs_per_row
+
+fig2, axes2 = plt.subplots(num_rows, graphs_per_row, figsize=(figsize_width, figsize_height))
 axes2 = axes2.flatten()
 
 for i, feature in enumerate(feature_vars):
@@ -185,7 +195,7 @@ for i, feature in enumerate(feature_vars):
     
     # Get data
     x_data = df_analysis[feature].values
-    y_data = df_analysis['0.3um'].values
+    y_data = df_analysis[um_col].values
     
     # Fit simple linear regression for this feature
     from scipy import stats
@@ -222,7 +232,13 @@ print("Saved visualization to 'particle_vs_features_linear_fit.png'")
 # ============================================================
 print("Generating individual linear fit plots for CO2...")
 
-fig3, axes3 = plt.subplots(2, 3, figsize=(16, 10))
+# Calculate grid dimensions based on number of features
+num_features = len(feature_vars)
+num_rows = math.ceil(num_features / graphs_per_row)
+figsize_height = 5 * num_rows
+figsize_width = 5 * graphs_per_row
+
+fig3, axes3 = plt.subplots(num_rows, graphs_per_row, figsize=(figsize_width, figsize_height))
 axes3 = axes3.flatten()
 
 for i, feature in enumerate(feature_vars):
@@ -230,7 +246,7 @@ for i, feature in enumerate(feature_vars):
     
     # Get data
     x_data = df_analysis[feature].values
-    y_data = df_analysis['co2'].values
+    y_data = df_analysis[co2_col].values
     
     # Fit simple linear regression for this feature
     slope, intercept, r_value, p_value, std_err = stats.linregress(x_data, y_data)
@@ -270,12 +286,12 @@ for feature in feature_vars:
     x_data = df_analysis[feature].values
     
     # 0.3um
-    y_particle_data = df_analysis['0.3um'].values
+    y_particle_data = df_analysis[um_col].values
     _, _, r_particle, _, _ = stats.linregress(x_data, y_particle_data)
     r2_particle_single = r_particle ** 2
     
     # CO2
-    y_co2_data = df_analysis['co2'].values
+    y_co2_data = df_analysis[co2_col].values
     _, _, r_co2, _, _ = stats.linregress(x_data, y_co2_data)
     r2_co2_single = r_co2 ** 2
     

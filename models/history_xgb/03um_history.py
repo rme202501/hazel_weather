@@ -7,10 +7,12 @@ import time
 import os
 import json
 from datetime import datetime
+import random
 
 # 1. Load Data
-pollution_data = pd.read_csv('history_aware_rolling_new.csv')
-weather_data = pd.read_csv('data/cambridge/preprocessed_bos_weather_utc.csv')
+pollution_data = pd.read_csv('8_chunked_output.csv')
+weather_data = pd.read_csv('4_preprocessed_bos_weather_utc.csv')
+num_history_steps = 0
 
 # Set weather_data index for efficient lookups
 weather_data_indexed = weather_data.set_index(weather_data.index)  # Use positional index
@@ -21,8 +23,26 @@ weather_feature_cols = ['Prevailing Wind Magnitude (MPH)', 'Gust Wind Magnitude 
           'Air Temp (F)', 'Dewpoint (F)', '6hr Max (F)', '6hr Min (F)', 'Rel Hum', 'Wind Chill (F)', 
           'Heat Index (F)', 'Sea Level Pressure (MB)', 'Precip 1hr', 'Precip 3hr', 'Precip 6hr',
           'cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
+# Randomly ignore some weather features during training
+# ignore_probability = 0.3  # 30% chance to ignore each feature
+# ignored_cols = [col for col in weather_feature_cols if random.random() < ignore_probability]
+ignored_cols = ['cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
+weather_feature_cols = [col for col in weather_feature_cols if col not in ignored_cols]
 
-def get_historical_weather_features(pollution_df, weather_df, history_steps=4):
+print("\n" + "="*60)
+print("FEATURES CONFIGURATION")
+print("="*60)
+if ignored_cols:
+    print(f"Ignored {len(ignored_cols)} features:")
+    for col in ignored_cols:
+        print(f"  - {col}")
+else:
+    print("No features were ignored")
+print(f"\nUsing {len(weather_feature_cols)} features for training")
+print("="*60 + "\n")
+
+
+def get_historical_weather_features(pollution_df, weather_df, history_steps=num_history_steps):
     """
     Join pollution data with current and historical weather data.
     
@@ -41,7 +61,7 @@ def get_historical_weather_features(pollution_df, weather_df, history_steps=4):
         X = X.join(current_weather, how='left')
     
     # Historical weather
-    for step in range(1, history_steps + 1):
+    for step in range(1, history_steps):
         idx_col = f'weather_idx_{step}'
         if idx_col in pollution_df.columns:
             # Filter out rows with NaN indices
@@ -54,41 +74,59 @@ def get_historical_weather_features(pollution_df, weather_df, history_steps=4):
                 historical_weather.columns = [f'{col}_h{step}' for col in weather_feature_cols]
                 # Join, filling NaN for rows that didn't have valid historical indices
                 X = X.join(historical_weather, how='left')
-    
-    X.to_csv('historical_weather_features.csv')
 
     return X
 
 # Build feature matrix with historical weather data
-X = get_historical_weather_features(pollution_data, weather_data, history_steps=4)
+X = get_historical_weather_features(pollution_data, weather_data, history_steps=num_history_steps)
 
 # Extract target from pollution data
-y = pollution_data['0.3um_rolling']
+y = pollution_data['um03_mean']
 
 # Drop rows where target or key indices are NaN
 valid_rows = (~y.isna()) & (~pollution_data['weather_idx'].isna())
 X = X[valid_rows]
+X.to_csv('model_inputs.csv')
 y = y[valid_rows]
 
 categorical_cols = ['cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
 
-train_split_ratio = 0.85
+# Create categorical column names with all suffixes
+categorical_feature_names = []
+categorical_feature_names.extend([f'{col}_current' for col in categorical_cols])
+for step in range(1, num_history_steps + 1):
+    categorical_feature_names.extend([f'{col}_h{step}' for col in categorical_cols])
+
+# Convert categorical columns to category type (only for columns that exist)
+for col in categorical_feature_names:
+    if col in X.columns:
+        X[col] = X[col].astype('category')
+
+train_split_ratio = 0.8
 train_split_point = int(len(X) * train_split_ratio)
 
-X_train = X.iloc[:train_split_point]
-y_train = y.iloc[:train_split_point]
-X_test = X.iloc[train_split_point:]
-y_test = y.iloc[train_split_point:]
+X_train = X.iloc[:train_split_point].copy()
+y_train = y.iloc[:train_split_point].copy()
+X_test = X.iloc[train_split_point:].copy()
+y_test = y.iloc[train_split_point:].copy()
+
+# Ensure categorical columns remain categorical after split
+for col in categorical_feature_names:
+    if col in X_train.columns:
+        X_train[col] = X_train[col].astype('category')
+        X_test[col] = X_test[col].astype('category')
 
 # 3. Initialize the Model
 # use XGBRegressor for predicting continuous numbers (prices, temp, etc.)
 model = xgb.XGBRegressor(
-    n_estimators=400,     # Number of trees
+    n_estimators=8,     # Number of trees
     learning_rate=0.01,     # How much each tree contributes (step size)
-    max_depth=5,           # Depth of each tree (complexity)
+    max_depth=2,           # Depth of each tree (complexity)
     objective='reg:squarederror', # Specify the learning task
     eval_metric='rmse',    # Metric to evaluate during training
-    random_state=42
+    random_state=42,
+    enable_categorical=False,  # Enable categorical feature support
+    colsample_bytree=0.1
 )
 
 # 4. Train the Model
@@ -115,6 +153,12 @@ print(f"Training completed in {training_time:.2f} seconds")
 print(f"Average time per tree: {training_time/model.n_estimators:.3f} seconds")
 print("="*60)
 
+# Baseline: always predict the mean of training set
+mean_train = y_train.mean()
+baseline_preds = [mean_train] * len(y_test)
+baseline_mse = mean_squared_error(y_test, baseline_preds)
+baseline_rmse = baseline_mse ** 0.5
+
 # 6. Make Predictions
 print("\nMaking predictions on test set...")
 preds = model.predict(X_test)
@@ -129,6 +173,14 @@ rmse = mse ** 0.5
 print(f"Mean Squared Error (MSE): {mse:.2f}")
 print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
 print(f"R² Score: {r2:.4f}")
+print("="*60)
+
+print("\n" + "-"*60)
+print("BASELINE COMPARISON (predicting mean of y_train)")
+print("-"*60)
+print(f"Baseline RMSE: {baseline_rmse:.2f}")
+print(f"Model RMSE: {rmse:.2f}")
+print(f"Improvement: {baseline_rmse - rmse:.2f} ({((baseline_rmse - rmse) / baseline_rmse * 100):.1f}%)")
 print("="*60)
 
 # 5. Plot Training Progress

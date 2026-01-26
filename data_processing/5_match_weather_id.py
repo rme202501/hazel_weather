@@ -1,0 +1,147 @@
+"""
+Script to merge air pollution data (every 10 seconds) with hourly weather data.
+Matches each air pollution reading to the nearest weather timestamp (within 30 min window).
+"""
+
+import pandas as pd
+from datetime import datetime, timedelta
+import os
+import glob
+
+def parse_pollution_timestamp(ts):
+    """Parse the air pollution timestamp format: YYYY-M-DTHH:MM:SS+00:00"""
+    # Remove timezone info for easier parsing
+    ts_clean = ts.replace('+00:00', '')
+    return datetime.strptime(ts_clean, '%Y-%m-%dT%H:%M:%S')
+
+def parse_weather_datetime(date_str, time_str):
+    """Parse weather date and time into datetime object"""
+    # Handle decimal hours (e.g., 1.9 for 1:54)
+    decimal_hours = float(time_str)
+    hours = int(decimal_hours)
+    minutes = int((decimal_hours - hours) * 60)
+    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+    return date_obj + timedelta(hours=hours, minutes=minutes)
+
+def find_nearest_weather(pollution_dt, weather_datetimes):
+    """
+    Find the nearest weather timestamp within 30 minutes of the pollution reading.
+    Returns the index of the nearest weather reading, or None if none within 30 min.
+    """
+    min_diff = timedelta(minutes=30)
+    nearest_idx = None
+    
+    for idx, weather_dt in enumerate(weather_datetimes):
+        diff = abs(pollution_dt - weather_dt)
+        if diff <= min_diff:
+            min_diff = diff
+            nearest_idx = idx
+    
+    return nearest_idx
+
+def merge_pollution_with_weather(pollution_csv, weather_csv, output_csv):
+    """
+    Merge air pollution data with weather data based on timestamp matching.
+    Matches pollution readings to weather data within +/- 30 minutes.
+    Adds a column with the matched weather row index instead of duplicating
+    all weather columns.
+    
+    Args:
+        pollution_csv: Path to air pollution CSV file
+        weather_csv: Path to weather CSV file  
+        output_csv: Path for output merged CSV file
+    """
+    # Read the CSV files
+    pollution_df = pd.read_csv(pollution_csv)
+    weather_df = pd.read_csv(weather_csv)
+    
+    # Parse pollution timestamps
+    pollution_df['datetime'] = pollution_df['UTC_timestamp'].apply(parse_pollution_timestamp)
+    # Add date and time (decimal hours) derived from pollution timestamps
+    pollution_df['date'] = pollution_df['datetime'].dt.strftime('%Y-%m-%d')
+    pollution_df['time'] = (
+        pollution_df['datetime'].dt.hour
+        + pollution_df['datetime'].dt.minute / 60
+        + pollution_df['datetime'].dt.second / 3600
+    )
+    
+    # Drop unwanted PM and particle size columns if present
+    drop_cols = ['PM1.0', 'PM2.5', 'PM10.0', '0.5um', '1.0um', '2.5um', '5.0um', '10.0um', 'ms', 'UTC_timestamp']
+    existing_drop = [col for col in drop_cols if col in pollution_df.columns]
+    if existing_drop:
+        pollution_df = pollution_df.drop(columns=existing_drop)
+    
+    # Parse weather timestamps
+    weather_df['datetime'] = weather_df.apply(
+        lambda row: parse_weather_datetime(row['date'], row['time']), axis=1
+    )
+    
+    # Get list of weather datetimes for matching
+    weather_datetimes = weather_df['datetime'].tolist()
+    
+    # Find nearest weather index for each pollution reading
+    pollution_df['weather_idx'] = pollution_df['datetime'].apply(
+        lambda dt: find_nearest_weather(dt, weather_datetimes)
+    ).astype('Int64')
+
+    # Drop helper datetime column before saving
+    merged_df = pollution_df.drop(columns=['datetime'])
+
+    # Save to CSV
+    merged_df.to_csv(output_csv, index=False)
+    print(f"Merged data saved to: {output_csv}")
+    print(f"Total rows: {len(merged_df)}")
+    print(f"Rows with weather match: {merged_df['weather_idx'].notna().sum()}")
+    print(f"Rows without weather match: {merged_df['weather_idx'].isna().sum()}")
+
+    return merged_df
+
+def process_folder(pollution_folder, weather_csv, output_folder=None):
+    """
+    Process all pollution data files in a folder and merge with weather data.
+    
+    Args:
+        pollution_folder: Path to folder containing pollution CSV files
+        weather_csv: Path to weather CSV file
+        output_folder: Path to output folder (defaults to pollution_folder)
+    """
+    if output_folder is None:
+        output_folder = pollution_folder
+    
+    # Find all data CSV files (not meta files)
+    pollution_files = glob.glob(os.path.join(pollution_folder, '*_data.csv'))
+    
+    for pollution_file in pollution_files:
+        basename = os.path.basename(pollution_file)
+        output_name = basename.replace('_data.csv', '_merged.csv')
+        output_path = os.path.join(output_folder, output_name)
+        
+        print(f"\nProcessing: {basename}")
+        merge_pollution_with_weather(pollution_file, weather_csv, output_path)
+
+
+# Example usage
+if __name__ == "__main__":
+    # Option 1: Process a single file
+    # pollution_file = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\data\1-08bos\260108_213900_data.csv"
+    # weather_file = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\data\bosweather\bos_weather_utc.csv"
+    # output_file = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\data\1-08bos\260108_213900_merged.csv"
+    # merge_pollution_with_weather(pollution_file, weather_file, output_file)
+    
+    # Option 2: Process all files in a folder
+    # Uncomment and modify paths as needed:
+    
+    # Example for Boston data folders
+    bos_weather = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\4_preprocessed_bos_weather_utc.csv"
+    
+    # Process each Boston data folder
+    data_base = r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\data\cambridge"
+    bos_folders = [
+        "1-08bos", "1-09bos", "1-11bos", "1-12bos", 
+        "1-13bos", "1-14bos", "1-15bos", "1-16bos", "1-17bos", "1-19bos"
+    ]
+    
+    for folder in bos_folders:
+        folder_path = os.path.join(data_base, folder)
+        if os.path.exists(folder_path):
+            process_folder(folder_path, bos_weather, r"c:\Users\ryane\OneDrive\Desktop\HazeL\hazel_weather\4_merged_data")
