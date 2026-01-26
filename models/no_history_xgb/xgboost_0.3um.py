@@ -31,9 +31,9 @@ y_test = y.iloc[train_split_point:]
 # 3. Initialize the Model
 # use XGBRegressor for predicting continuous numbers (prices, temp, etc.)
 model = xgb.XGBRegressor(
-    n_estimators=11,     # Number of trees
+    n_estimators=300,     # Number of trees
     learning_rate=0.01,     # How much each tree contributes (step size)
-    max_depth=5,           # Depth of each tree (complexity)
+    max_depth=2,           # Depth of each tree (complexity)
     objective='reg:squarederror', # Specify the learning task
     eval_metric='rmse',    # Metric to evaluate during training
     random_state=42

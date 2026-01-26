@@ -1,6 +1,7 @@
 """
 Linear Regression Analysis Script
 Compares particle count (0.3um) and CO2 levels with weather variables.
+Merges data CSV (with weather index) with weather CSV before analysis.
 """
 
 import pandas as pd
@@ -11,14 +12,43 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# ============================================================
+# CONFIGURATION - Set these paths and column names
+# ============================================================
+data_file = 'nohistory_rolling_average.csv'  # CSV with weather index
+weather_file = 'bos_weather_utc.csv'  # Weather data CSV
+weather_index_column = 'weather_id'  # Column name in data_file that references weather_file
+weather_id_column = 'id'  # Column name in weather_file that matches the weather index
+merge_on_index = True  # If True, merge on index position instead of columns
+
 # Load the data
-input_file = 'nohistory_rolling_average.csv'
-print(f"Loading data from {input_file}...")
-df = pd.read_csv(input_file)
+print(f"Loading data from {data_file}...")
+df = pd.read_csv(data_file)
+
+# Load weather data
+print(f"Loading weather data from {weather_file}...")
+weather_df = pd.read_csv(weather_file)
+
+# Merge data with weather data
+print(f"\nMerging data with weather data...")
+if merge_on_index:
+    # Merge based on weather index column
+    if weather_index_column in df.columns:
+        print(f"Merging on '{weather_index_column}' (from data) with '{weather_id_column}' (from weather)...")
+        df = df.merge(weather_df, left_on=weather_index_column, right_on=weather_id_column, how='left')
+        print(f"Data shape after merge: {df.shape}")
+    else:
+        print(f"Warning: '{weather_index_column}' not found in data file. Using data as-is.")
+else:
+    # Alternative: If weather data should be matched by index position
+    print("Using index-based merge...")
+    df = df.reset_index(drop=True)
+    weather_df = weather_df.reset_index(drop=True)
+    df = pd.concat([df, weather_df], axis=1)
 
 # Define the columns we're interested in
 target_vars = ['0.3um', 'co2']
-feature_vars = ['Vis (MI)', 'Air Temp (F)', 'Dewpoint (F)', 'Rel Hum', 'Sea Level Pressure (MB)', 'Prevailing Wind Magnitude (MPH)']
+feature_vars = ['Vis (MI)', 'Air Temp (F)', 'Dewpoint (F)', 'Rel Hum', 'Sea Level Pressure (MB)', 'Precip 1hr']
 
 # Clean the data
 print("\nCleaning data...")

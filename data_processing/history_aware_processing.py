@@ -5,10 +5,10 @@ Script to add a column to weatherid CSV files to allow training to use weather d
 import pandas as pd
 
 # Load the data
-import_path = 'rolling_average_output.csv'
-export_path = 'history_aware_rolling.csv'
+import_path = 'rolling_average_new.csv'
+export_path = 'history_aware_rolling_new.csv'
 
-number_of_previous_conditions = 3  # Number of previous weather conditions to include
+number_of_previous_conditions = 4  # Number of previous weather conditions to include
 
 print(f"Loading data from {import_path}...")
 

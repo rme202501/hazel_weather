@@ -1,0 +1,3 @@
+1. Add time of day as another input variable
+2. Create script to do time averages and cut down on the number of rows
+3. Rerun models with attention to history and with time averages

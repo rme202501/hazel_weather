@@ -4,5 +4,6 @@ PROCESSING PIPELINE TO FORMAT DATA FOR XGBOOST TRAINING
 2. Add a year and month to the generic "day" data from NOAA using full_date.py
 3. Convert weather data into utc time using convert_to_utc.py (Usage: python convert_to_utc.py input.csv output.csv)
 4. Process weather data to separate out and numerically categorize wind and cloud types using weather_preprocessing.py editing import_path and export_path
-5. Match up and merge air pollution data with corresponding weather data using merge_air_weather.py
+5. Match up  air pollution data with corresponding weather row using merge_air_weather.py
 6. Compress merged files from step 5 into one large file using squish_merged.py
+7. Take a rolling average using rolling_average.py or chunked_average.py

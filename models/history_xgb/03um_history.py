@@ -9,8 +9,8 @@ import json
 from datetime import datetime
 
 # 1. Load Data
-pollution_data = pd.read_csv('history_aware_rolling.csv')
-weather_data = pd.read_csv('data/cambridge/bosweather/preprocessed_bos_weather_utc.csv')
+pollution_data = pd.read_csv('history_aware_rolling_new.csv')
+weather_data = pd.read_csv('data/cambridge/preprocessed_bos_weather_utc.csv')
 
 # Set weather_data index for efficient lookups
 weather_data_indexed = weather_data.set_index(weather_data.index)  # Use positional index
@@ -22,7 +22,7 @@ weather_feature_cols = ['Prevailing Wind Magnitude (MPH)', 'Gust Wind Magnitude 
           'Heat Index (F)', 'Sea Level Pressure (MB)', 'Precip 1hr', 'Precip 3hr', 'Precip 6hr',
           'cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
 
-def get_historical_weather_features(pollution_df, weather_df, history_steps=3):
+def get_historical_weather_features(pollution_df, weather_df, history_steps=4):
     """
     Join pollution data with current and historical weather data.
     
@@ -55,10 +55,12 @@ def get_historical_weather_features(pollution_df, weather_df, history_steps=3):
                 # Join, filling NaN for rows that didn't have valid historical indices
                 X = X.join(historical_weather, how='left')
     
+    X.to_csv('historical_weather_features.csv')
+
     return X
 
 # Build feature matrix with historical weather data
-X = get_historical_weather_features(pollution_data, weather_data, history_steps=3)
+X = get_historical_weather_features(pollution_data, weather_data, history_steps=4)
 
 # Extract target from pollution data
 y = pollution_data['0.3um_rolling']
@@ -70,7 +72,7 @@ y = y[valid_rows]
 
 categorical_cols = ['cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
 
-train_split_ratio = 0.95
+train_split_ratio = 0.85
 train_split_point = int(len(X) * train_split_ratio)
 
 X_train = X.iloc[:train_split_point]
@@ -81,9 +83,9 @@ y_test = y.iloc[train_split_point:]
 # 3. Initialize the Model
 # use XGBRegressor for predicting continuous numbers (prices, temp, etc.)
 model = xgb.XGBRegressor(
-    n_estimators=20,     # Number of trees
+    n_estimators=400,     # Number of trees
     learning_rate=0.01,     # How much each tree contributes (step size)
-    max_depth=7,           # Depth of each tree (complexity)
+    max_depth=5,           # Depth of each tree (complexity)
     objective='reg:squarederror', # Specify the learning task
     eval_metric='rmse',    # Metric to evaluate during training
     random_state=42
