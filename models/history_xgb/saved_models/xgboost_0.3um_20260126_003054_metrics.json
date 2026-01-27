@@ -1,0 +1,16 @@
+{
+    "timestamp": "20260126_003054",
+    "model_file": "xgboost_0.3um_20260126_003054_rmse855.47_r20.1245.json",
+    "metrics": {
+        "RMSE": 855.4707300987957,
+        "R2": 0.12454695260695203,
+        "MSE": 731830.1700557666
+    },
+    "training_info": {
+        "training_samples": 1140,
+        "test_samples": 288,
+        "n_features": 50,
+        "n_estimators": 800,
+        "training_time_seconds": 3.905024766921997
+    }
+}

@@ -12,11 +12,83 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
+from scipy import stats
+
+# ============================================================
+# BOOTSTRAP CONFIGURATION
+# ============================================================
+N_BOOTSTRAP = 1000  # Number of bootstrap iterations
+CONFIDENCE_LEVEL = 0.95  # Confidence level for intervals
+RANDOM_STATE = 42  # For reproducibility
+
+def bootstrap_r2(X, y, n_iterations=N_BOOTSTRAP, confidence=CONFIDENCE_LEVEL, random_state=RANDOM_STATE):
+    """
+    Perform bootstrapping to estimate R² uncertainty.
+    Returns: mean R², std, and confidence interval bounds.
+    """
+    np.random.seed(random_state)
+    n_samples = len(X)
+    r2_scores = []
+    
+    for _ in range(n_iterations):
+        # Bootstrap sample with replacement
+        indices = np.random.choice(n_samples, size=n_samples, replace=True)
+        X_boot = X.iloc[indices] if hasattr(X, 'iloc') else X[indices]
+        y_boot = y.iloc[indices] if hasattr(y, 'iloc') else y[indices]
+        
+        # Fit model and calculate R²
+        model = LinearRegression()
+        model.fit(X_boot, y_boot)
+        y_pred = model.predict(X_boot)
+        r2 = r2_score(y_boot, y_pred)
+        r2_scores.append(r2)
+    
+    r2_scores = np.array(r2_scores)
+    mean_r2 = np.mean(r2_scores)
+    std_r2 = np.std(r2_scores)
+    
+    # Confidence interval using percentile method
+    alpha = 1 - confidence
+    ci_lower = np.percentile(r2_scores, 100 * alpha / 2)
+    ci_upper = np.percentile(r2_scores, 100 * (1 - alpha / 2))
+    
+    return mean_r2, std_r2, ci_lower, ci_upper, r2_scores
+
+def bootstrap_simple_r2(x, y, n_iterations=N_BOOTSTRAP, confidence=CONFIDENCE_LEVEL, random_state=RANDOM_STATE):
+    """
+    Perform bootstrapping for simple linear regression (single feature).
+    Returns: mean R², std, and confidence interval bounds.
+    """
+    np.random.seed(random_state)
+    n_samples = len(x)
+    r2_scores = []
+    
+    for _ in range(n_iterations):
+        # Bootstrap sample with replacement
+        indices = np.random.choice(n_samples, size=n_samples, replace=True)
+        x_boot = x[indices]
+        y_boot = y[indices]
+        
+        # Calculate R² using scipy linregress
+        _, _, r_value, _, _ = stats.linregress(x_boot, y_boot)
+        r2 = r_value ** 2
+        r2_scores.append(r2)
+    
+    r2_scores = np.array(r2_scores)
+    mean_r2 = np.mean(r2_scores)
+    std_r2 = np.std(r2_scores)
+    
+    # Confidence interval using percentile method
+    alpha = 1 - confidence
+    ci_lower = np.percentile(r2_scores, 100 * alpha / 2)
+    ci_upper = np.percentile(r2_scores, 100 * (1 - alpha / 2))
+    
+    return mean_r2, std_r2, ci_lower, ci_upper, r2_scores
 
 # ============================================================
 # CONFIGURATION - Set these paths and column names
 # ============================================================
-data_file = '8_chunked_output.csv'  # CSV with weather index
+data_file = '1_chunk_experiment/8_chunked_output.csv'  # CSV with weather index
 weather_file = '4_preprocessed_bos_weather_utc.csv'  # Weather data CSV
 weather_index_column = 'weather_idx'  # Column name in data_file that references weather_file
 weather_id_column = 'id'  # Column name in weather_file that matches the weather index
@@ -115,6 +187,14 @@ print("\nCoefficients:")
 for feature, coef in zip(feature_vars, model_particle.coef_):
     print(f"  {feature:30s}: {coef:.6f}")
 
+# Bootstrap R² uncertainty for 0.3um
+print(f"\nBootstrapping R² ({N_BOOTSTRAP} iterations)...")
+mean_r2_particle, std_r2_particle, ci_lower_particle, ci_upper_particle, r2_dist_particle = bootstrap_r2(X, y_particle)
+print(f"\nBootstrap R² Results:")
+print(f"  Mean R²:               {mean_r2_particle:.4f}")
+print(f"  Std Dev:               {std_r2_particle:.4f}")
+print(f"  95% CI:                [{ci_lower_particle:.4f}, {ci_upper_particle:.4f}]")
+
 # ============================================================
 # LINEAR REGRESSION FOR CO2
 # ============================================================
@@ -143,6 +223,14 @@ print("\nCoefficients:")
 for feature, coef in zip(feature_vars, model_co2.coef_):
     print(f"  {feature:30s}: {coef:.6f}")
 
+# Bootstrap R² uncertainty for CO2
+print(f"\nBootstrapping R² ({N_BOOTSTRAP} iterations)...")
+mean_r2_co2, std_r2_co2, ci_lower_co2, ci_upper_co2, r2_dist_co2 = bootstrap_r2(X, y_co2)
+print(f"\nBootstrap R² Results:")
+print(f"  Mean R²:               {mean_r2_co2:.4f}")
+print(f"  Std Dev:               {std_r2_co2:.4f}")
+print(f"  95% CI:                [{ci_lower_co2:.4f}, {ci_upper_co2:.4f}]")
+
 # ============================================================
 # CORRELATION ANALYSIS
 # ============================================================
@@ -170,7 +258,7 @@ graphs_per_row = 3
 plt.figure(figsize=(10, 8))
 sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, 
             fmt='.2f', square=True, linewidths=0.5)
-plt.title('Correlation Matrix Heatmap', fontsize=14, fontweight='bold')
+plt.title('Correlation Matrix Heatmap (6 chunks per hour)', fontsize=14, fontweight='bold')
 
 plt.tight_layout()
 plt.savefig('linear_regression_results.png', dpi=150, bbox_inches='tight')
@@ -198,7 +286,6 @@ for i, feature in enumerate(feature_vars):
     y_data = df_analysis[um_col].values
     
     # Fit simple linear regression for this feature
-    from scipy import stats
     slope, intercept, r_value, p_value, std_err = stats.linregress(x_data, y_data)
     r_squared = r_value ** 2
     
@@ -221,7 +308,7 @@ for i, feature in enumerate(feature_vars):
     ax.set_title(f'0.3um vs {feature}', fontsize=12, fontweight='bold')
     ax.legend(loc='upper right', fontsize=9)
 
-plt.suptitle('0.3um Particle Count vs Weather Variables', 
+plt.suptitle('0.3um Particle Count vs Weather Variables (6 chunks per hour)', 
              fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.savefig('particle_vs_features_linear_fit.png', dpi=150, bbox_inches='tight')
@@ -271,7 +358,7 @@ for i, feature in enumerate(feature_vars):
     ax.set_title(f'CO2 vs {feature}', fontsize=12, fontweight='bold')
     ax.legend(loc='upper right', fontsize=9)
 
-plt.suptitle('CO2 vs Weather Variables', 
+plt.suptitle('CO2 vs Weather Variables (6 chunks per hour)', 
              fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.savefig('co2_vs_features_linear_fit.png', dpi=150, bbox_inches='tight')
@@ -298,26 +385,149 @@ for feature in feature_vars:
     print(f"{feature:<30} {r2_particle_single:<15.4f} {r2_co2_single:<15.4f}")
 
 # ============================================================
+# BOOTSTRAP R² UNCERTAINTY FOR INDIVIDUAL FEATURES
+# ============================================================
+print("\n" + "="*80)
+print("BOOTSTRAP R² UNCERTAINTY FOR INDIVIDUAL FEATURES")
+print("="*80)
+print(f"\n{'Feature':<25} {'0.3um R² (±std)':<20} {'0.3um 95% CI':<25} {'CO2 R² (±std)':<20} {'CO2 95% CI':<25}")
+print("-" * 115)
+
+bootstrap_results = []
+for feature in feature_vars:
+    x_data = df_analysis[feature].values
+    y_particle_data = df_analysis[um_col].values
+    y_co2_data = df_analysis[co2_col].values
+    
+    # Bootstrap for 0.3um
+    mean_r2_p, std_r2_p, ci_lo_p, ci_hi_p, _ = bootstrap_simple_r2(x_data, y_particle_data)
+    
+    # Bootstrap for CO2
+    mean_r2_c, std_r2_c, ci_lo_c, ci_hi_c, _ = bootstrap_simple_r2(x_data, y_co2_data)
+    
+    print(f"{feature:<25} {mean_r2_p:.4f} (±{std_r2_p:.4f})     [{ci_lo_p:.4f}, {ci_hi_p:.4f}]          {mean_r2_c:.4f} (±{std_r2_c:.4f})     [{ci_lo_c:.4f}, {ci_hi_c:.4f}]")
+    
+    bootstrap_results.append({
+        'Feature': feature,
+        '0.3um_R2_mean': mean_r2_p,
+        '0.3um_R2_std': std_r2_p,
+        '0.3um_R2_CI_lower': ci_lo_p,
+        '0.3um_R2_CI_upper': ci_hi_p,
+        'CO2_R2_mean': mean_r2_c,
+        'CO2_R2_std': std_r2_c,
+        'CO2_R2_CI_lower': ci_lo_c,
+        'CO2_R2_CI_upper': ci_hi_c
+    })
+
+# ============================================================
 # SUMMARY TABLE
 # ============================================================
 print("\n" + "="*60)
 print("SUMMARY TABLE")
 print("="*60)
 
-summary_data = {
-    'Metric': ['R² Score', 'RMSE', 'MAE', 'Intercept'] + feature_vars,
-    '0.3um Model': [f"{r2_particle:.4f}", f"{rmse_particle:.4f}", f"{mae_particle:.4f}", 
-                   f"{model_particle.intercept_:.4f}"] + [f"{c:.6f}" for c in model_particle.coef_],
-    'CO2 Model': [f"{r2_co2:.4f}", f"{rmse_co2:.4f}", f"{mae_co2:.4f}",
-                 f"{model_co2.intercept_:.4f}"] + [f"{c:.6f}" for c in model_co2.coef_]
-}
+# Create comprehensive summary with all R² values and uncertainties
+summary_rows = []
 
-summary_df = pd.DataFrame(summary_data)
+# Section 1: Multivariate Model Results
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'Test R²',
+    '0.3um Value': f"{r2_particle:.4f}",
+    'CO2 Value': f"{r2_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'Bootstrap R² Mean',
+    '0.3um Value': f"{mean_r2_particle:.4f}",
+    'CO2 Value': f"{mean_r2_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'Bootstrap R² Std Dev',
+    '0.3um Value': f"{std_r2_particle:.4f}",
+    'CO2 Value': f"{std_r2_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'Bootstrap 95% CI Lower',
+    '0.3um Value': f"{ci_lower_particle:.4f}",
+    'CO2 Value': f"{ci_lower_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'Bootstrap 95% CI Upper',
+    '0.3um Value': f"{ci_upper_particle:.4f}",
+    'CO2 Value': f"{ci_upper_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'RMSE',
+    '0.3um Value': f"{rmse_particle:.4f}",
+    'CO2 Value': f"{rmse_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'MAE',
+    '0.3um Value': f"{mae_particle:.4f}",
+    'CO2 Value': f"{mae_co2:.4f}"
+})
+summary_rows.append({
+    'Model/Feature': 'MULTIVARIATE MODEL',
+    'Metric': 'Intercept',
+    '0.3um Value': f"{model_particle.intercept_:.4f}",
+    'CO2 Value': f"{model_co2.intercept_:.4f}"
+})
+
+# Add coefficients for multivariate model
+for feature, coef_p, coef_c in zip(feature_vars, model_particle.coef_, model_co2.coef_):
+    summary_rows.append({
+        'Model/Feature': 'MULTIVARIATE MODEL',
+        'Metric': f'Coefficient: {feature}',
+        '0.3um Value': f"{coef_p:.6f}",
+        'CO2 Value': f"{coef_c:.6f}"
+    })
+
+# Section 2: Individual Feature R² Results with Uncertainties
+for result in bootstrap_results:
+    feature = result['Feature']
+    
+    summary_rows.append({
+        'Model/Feature': feature,
+        'Metric': 'Univariate R²',
+        '0.3um Value': f"{result['0.3um_R2_mean']:.4f}",
+        'CO2 Value': f"{result['CO2_R2_mean']:.4f}"
+    })
+    summary_rows.append({
+        'Model/Feature': feature,
+        'Metric': 'Bootstrap R² Std Dev',
+        '0.3um Value': f"{result['0.3um_R2_std']:.4f}",
+        'CO2 Value': f"{result['CO2_R2_std']:.4f}"
+    })
+    summary_rows.append({
+        'Model/Feature': feature,
+        'Metric': 'Bootstrap 95% CI Lower',
+        '0.3um Value': f"{result['0.3um_R2_CI_lower']:.4f}",
+        'CO2 Value': f"{result['CO2_R2_CI_lower']:.4f}"
+    })
+    summary_rows.append({
+        'Model/Feature': feature,
+        'Metric': 'Bootstrap 95% CI Upper',
+        '0.3um Value': f"{result['0.3um_R2_CI_upper']:.4f}",
+        'CO2 Value': f"{result['CO2_R2_CI_upper']:.4f}"
+    })
+
+summary_df = pd.DataFrame(summary_rows)
 print(summary_df.to_string(index=False))
 
-# Save summary to CSV
+# Save comprehensive summary to CSV
 summary_df.to_csv('regression_summary.csv', index=False)
-print("\nSaved summary to 'regression_summary.csv'")
+print("\nSaved comprehensive summary with all R² values and uncertainties to 'regression_summary.csv'")
+
+# Save bootstrap results for individual features to CSV
+bootstrap_df = pd.DataFrame(bootstrap_results)
+bootstrap_df.to_csv('bootstrap_r2_summary.csv', index=False)
+print("Saved bootstrap results to 'bootstrap_r2_summary.csv'")
 
 plt.show()
 

@@ -10,7 +10,7 @@ from datetime import datetime
 import random
 
 # 1. Load Data
-pollution_data = pd.read_csv('8_chunked_output.csv')
+pollution_data = pd.read_csv('1_chunk_experiment/8_chunked_output.csv')
 weather_data = pd.read_csv('4_preprocessed_bos_weather_utc.csv')
 num_history_steps = 0
 
@@ -18,15 +18,39 @@ num_history_steps = 0
 weather_data_indexed = weather_data.set_index(weather_data.index)  # Use positional index
 
 # Define weather feature columns
-weather_feature_cols = ['Prevailing Wind Magnitude (MPH)', 'Gust Wind Magnitude (MPH)', 'Vis (MI)', 
-          'Cloud Height 1 (100s of ft)', 'Cloud Height 2 (100s of ft)', 'Cloud Height 3 (100s of ft)', 'Cloud Height 4 (100s of ft)', 
-          'Air Temp (F)', 'Dewpoint (F)', '6hr Max (F)', '6hr Min (F)', 'Rel Hum', 'Wind Chill (F)', 
-          'Heat Index (F)', 'Sea Level Pressure (MB)', 'Precip 1hr', 'Precip 3hr', 'Precip 6hr',
-          'cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
+weather_feature_cols = [
+                        'Prevailing Wind Magnitude (MPH)', 
+                        'Gust Wind Magnitude (MPH)', 
+                        'Vis (MI)', 
+                        'Cloud Height 1 (100s of ft)', 
+                        'Cloud Height 2 (100s of ft)', 
+                        'Cloud Height 3 (100s of ft)', 
+                        'Cloud Height 4 (100s of ft)', 
+                        'Air Temp (F)', 
+                        'Dewpoint (F)', 
+                        '6hr Max (F)', 
+                        '6hr Min (F)', 
+                        'Rel Hum', 
+                        'Wind Chill (F)', 
+                        'Heat Index (F)', 
+                        'Sea Level Pressure (MB)', 
+                        'Precip 1hr', 
+                        'Precip 3hr', 
+                        'Precip 6hr',
+                        # 'cloud_code_1', 
+                        # 'cloud_code_2', 
+                        # 'cloud_code_3', 
+                        # 'cloud_code_4', 
+                        # 'prevailing_wind_dir_code', 
+                        # 'gust_wind_dir_code', 
+                        # 'weather_code'
+                        ]
+
 # Randomly ignore some weather features during training
 # ignore_probability = 0.3  # 30% chance to ignore each feature
 # ignored_cols = [col for col in weather_feature_cols if random.random() < ignore_probability]
 ignored_cols = ['cloud_code_1', 'cloud_code_2', 'cloud_code_3', 'cloud_code_4', 'prevailing_wind_dir_code', 'gust_wind_dir_code', 'weather_code']
+# ignored_cols = []
 weather_feature_cols = [col for col in weather_feature_cols if col not in ignored_cols]
 
 print("\n" + "="*60)
@@ -132,14 +156,13 @@ for col in categorical_feature_names:
 # 3. Initialize the Model
 # use XGBRegressor for predicting continuous numbers (prices, temp, etc.)
 model = xgb.XGBRegressor(
-    n_estimators=800,     # Number of trees
+    n_estimators=200,     # Number of trees
     learning_rate=0.01,     # How much each tree contributes (step size)
     max_depth=10,           # Depth of each tree (complexity)
     objective='reg:squarederror', # Specify the learning task
     eval_metric='rmse',    # Metric to evaluate during training
     random_state=42,
-    enable_categorical=False,  # Enable categorical feature support
-    colsample_bytree=0.1
+    enable_categorical=True,  # Enable categorical feature support
 )
 
 # 4. Train the Model
@@ -208,7 +231,7 @@ ax.plot(x_axis, results['validation_1']['rmse'], label='Validation', linewidth=2
 ax.legend(fontsize=12)
 ax.set_ylabel('RMSE', fontsize=12)
 ax.set_xlabel('Epoch', fontsize=12)
-ax.set_title('0.3 um Prediction w/ Rolling Averages & Attention to History', fontsize=14, fontweight='bold')
+ax.set_title('1 Chunk per Hour 0.3 um Prediction w/ No Attention to History, No Categorical Data', fontsize=14, fontweight='bold')
 plt.grid(True, alpha=0.3)
 
 # Annotate final values
@@ -219,8 +242,14 @@ ax.text(0.02, 0.98, f'Final Train RMSE: {final_train_rmse:.2f}\nFinal Validation
         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
 plt.tight_layout()
-plt.show()
+plt.savefig('training_process_0.3um.png', dpi=300, bbox_inches='tight')
 print("Graph displayed successfully!")
+
+plt.figure(figsize=(10, 8))
+xgb.plot_importance(model, importance_type='gain') # 'gain' is often preferred over default 'weight'
+plt.title('Feature Importance (Gain)')
+plt.tight_layout()
+plt.savefig('feature_importance_0.3um.png', dpi=300, bbox_inches='tight')
 
 # 8. Save the Model
 print("\nSaving trained model...")

@@ -16,8 +16,8 @@ import pandas as pd
 
 # === User configuration ===
 INPUT_PATH = Path("7_history_aware_output.csv")
-OUTPUT_PATH = Path("8_chunked_output.csv")
-CHUNK_COUNT = 6
+OUTPUT_PATH = Path("1_chunk_experiment/8_chunked_output.csv")
+CHUNK_COUNT = 1
 
 DATE_COL = "date"            # used when DATETIME_COL is None
 TIME_COL = "time"            # used when DATETIME_COL is None

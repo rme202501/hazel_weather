@@ -1,14 +1,54 @@
-Metric,0.3um Model,CO2 Model
-R² Score,0.9165,0.9140
-RMSE,287.9399,4.7941
-MAE,232.2714,4.2317
-Intercept,97681.2714,3945.8423
-Vis (MI),-26.956605,-0.800198
-Air Temp (F),-5876.554538,-87.962742
-Dewpoint (F),5743.749995,84.441316
-Rel Hum,-1684.406799,-26.580727
-Sea Level Pressure (MB),75.444259,-0.772089
-Precip 1hr,-9600.658880,-23.197103
-Prevailing Wind Magnitude (MPH),61.244479,1.746003
-time,-25.311701,-0.567858
-Cloud Height 1 (100s of ft),-4.201748,0.276354
+Model/Feature,Metric,0.3um Value,CO2 Value
+MULTIVARIATE MODEL,Test R²,-2.8363,-0.8769
+MULTIVARIATE MODEL,Bootstrap R² Mean,0.9872,0.9871
+MULTIVARIATE MODEL,Bootstrap R² Std Dev,0.0222,0.0237
+MULTIVARIATE MODEL,Bootstrap 95% CI Lower,0.9211,0.9267
+MULTIVARIATE MODEL,Bootstrap 95% CI Upper,1.0000,1.0000
+MULTIVARIATE MODEL,RMSE,1311.3731,28.4935
+MULTIVARIATE MODEL,MAE,1012.2616,18.8779
+MULTIVARIATE MODEL,Intercept,23651.0426,-1586.7744
+MULTIVARIATE MODEL,Coefficient: Vis (MI),24.726187,0.002338
+MULTIVARIATE MODEL,Coefficient: Air Temp (F),-6647.708598,-18.927725
+MULTIVARIATE MODEL,Coefficient: Dewpoint (F),6584.320289,18.024902
+MULTIVARIATE MODEL,Coefficient: Rel Hum,-1809.184633,-4.788878
+MULTIVARIATE MODEL,Coefficient: Sea Level Pressure (MB),157.874809,2.454910
+MULTIVARIATE MODEL,Coefficient: Precip 1hr,-9391.145160,9.171286
+MULTIVARIATE MODEL,Coefficient: Prevailing Wind Magnitude (MPH),70.025045,0.310317
+MULTIVARIATE MODEL,Coefficient: time,59.019695,2.164537
+MULTIVARIATE MODEL,Coefficient: Cloud Height 1 (100s of ft),-5.027480,-0.077398
+Vis (MI),Univariate R²,0.1526,0.0640
+Vis (MI),Bootstrap R² Std Dev,0.1906,0.0768
+Vis (MI),Bootstrap 95% CI Lower,0.0000,0.0001
+Vis (MI),Bootstrap 95% CI Upper,0.6052,0.2499
+Air Temp (F),Univariate R²,0.1733,0.3532
+Air Temp (F),Bootstrap R² Std Dev,0.1652,0.1265
+Air Temp (F),Bootstrap 95% CI Lower,0.0008,0.1249
+Air Temp (F),Bootstrap 95% CI Upper,0.6003,0.5961
+Dewpoint (F),Univariate R²,0.3000,0.6237
+Dewpoint (F),Bootstrap R² Std Dev,0.1738,0.1334
+Dewpoint (F),Bootstrap 95% CI Lower,0.0021,0.3091
+Dewpoint (F),Bootstrap 95% CI Upper,0.6570,0.8364
+Rel Hum,Univariate R²,0.4601,0.4599
+Rel Hum,Bootstrap R² Std Dev,0.2367,0.2078
+Rel Hum,Bootstrap 95% CI Lower,0.1325,0.0178
+Rel Hum,Bootstrap 95% CI Upper,0.9095,0.8073
+Sea Level Pressure (MB),Univariate R²,0.3832,0.1863
+Sea Level Pressure (MB),Bootstrap R² Std Dev,0.1090,0.1105
+Sea Level Pressure (MB),Bootstrap 95% CI Lower,0.1953,0.0274
+Sea Level Pressure (MB),Bootstrap 95% CI Upper,0.6240,0.4408
+Precip 1hr,Univariate R²,0.1225,0.0670
+Precip 1hr,Bootstrap R² Std Dev,0.0776,0.0756
+Precip 1hr,Bootstrap 95% CI Lower,0.0110,0.0002
+Precip 1hr,Bootstrap 95% CI Upper,0.3209,0.2803
+Prevailing Wind Magnitude (MPH),Univariate R²,0.2131,0.3063
+Prevailing Wind Magnitude (MPH),Bootstrap R² Std Dev,0.1697,0.1879
+Prevailing Wind Magnitude (MPH),Bootstrap 95% CI Lower,0.0005,0.0054
+Prevailing Wind Magnitude (MPH),Bootstrap 95% CI Upper,0.5694,0.6882
+time,Univariate R²,0.2752,0.4183
+time,Bootstrap R² Std Dev,0.1606,0.2478
+time,Bootstrap 95% CI Lower,0.0421,0.0133
+time,Bootstrap 95% CI Upper,0.6556,0.8443
+Cloud Height 1 (100s of ft),Univariate R²,0.2265,0.2789
+Cloud Height 1 (100s of ft),Bootstrap R² Std Dev,0.2310,0.2143
+Cloud Height 1 (100s of ft),Bootstrap 95% CI Lower,0.0004,0.0014
+Cloud Height 1 (100s of ft),Bootstrap 95% CI Upper,0.8582,0.8517
