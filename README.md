@@ -64,43 +64,67 @@ Feature selection experiments are documented in [1_chunk_experiment/features.txt
 
 ## Results
 
-### Rolling Average Models (No History)
+### Rolling Average Models (With History)
 
-![Rolling CO2 Training](rolling_results/training_process_co2.png)
-*CO2 prediction training progress — rolling average, no history*
+![Rolling CO2 Histogram](rolling_results/co2_roll_hist.png)
+*CO2 prediction distribution — rolling average, w/ history*
 
-![Rolling 0.3um Training](rolling_results/training_process_0.3um.png)
-*0.3µm particle prediction training progress — rolling average, no history*
+![Rolling 0.3um Histogram](rolling_results/0.3_roll_hist.png)
+*0.3µm particle prediction distribution — rolling average, w/ history*
 
-![Rolling CO2 Feature Importance](rolling_results/feature_importance_co2.png)
-*Feature importance for CO2 — rolling average model*
+![Rolling CO2 Linear Regression](rolling_results/co2_linear_reg_rolling.png)
+*Linear regression analysis for CO2 — rolling average model*
 
-![Rolling 0.3um Feature Importance](rolling_results/feature_importance_0.3um.png)
-*Feature importance for 0.3µm particles — rolling average model*
+![Rolling 0.3um Linear Regression](rolling_results/0.3um_linear_reg_rolling.png)
+*Linear regression analysis for 0.3µm particles — rolling average model*
+
+![Rolling Correlation Heatmap](rolling_results/linear_regression_results_rolling.png)
+*Correlation matrix heatmap — rolling average model*
 
 ### 1 Chunk per Hour Experiment
 
-![1 Chunk CO2 Training](1_chunk_experiment/training_process_co2.png)
+![1 Chunk CO2 Training](1_chunk_experiment/all_training_process_co2.png)
 *CO2 prediction training progress — 1 chunk per hour*
 
-![1 Chunk 0.3um Training](1_chunk_experiment/training_process_0.3um.png)
+![1 Chunk 0.3um Training](1_chunk_experiment/all_training_process_0.3um.png)
 *0.3µm particle prediction training progress — 1 chunk per hour*
 
-![1 Chunk CO2 Feature Importance](1_chunk_experiment/feature_importance_co2.png)
+![1 Chunk CO2 Feature Importance](1_chunk_experiment/all_feature_importance_co2.png)
 *Feature importance for CO2 — 1 chunk per hour*
 
-![1 Chunk 0.3um Feature Importance](1_chunk_experiment/feature_importance_0.3um.png)
+![1 Chunk 0.3um Feature Importance](1_chunk_experiment/all_feature_importance_0.3um.png)
 *Feature importance for 0.3µm particles — 1 chunk per hour*
 
-### Linear Regression Analysis
-
-![Correlation Heatmap](1_chunk_experiment/linear_regression_results.png)
-*Correlation matrix heatmap between weather variables and pollution targets*
+![1 Chunk Correlation Heatmap](1_chunk_experiment/linear_regression_results.png)
+*Correlation matrix heatmap — 1 chunk per hour*
 
 ![0.3um vs Features](1_chunk_experiment/particle_vs_features_linear_fit.png)
 *0.3µm particle count vs individual weather features with linear fits*
 
 ![CO2 vs Features](1_chunk_experiment/co2_vs_features_linear_fit.png)
+*CO2 vs individual weather features with linear fits*
+
+### 6 Chunks per Hour Experiment
+
+![6 Chunks CO2 Training](6_chunks/all_training_process_co2.png)
+*CO2 prediction training progress — 6 chunks per hour*
+
+![6 Chunks 0.3um Training](6_chunks/all_training_process_0.3um.png)
+*0.3µm particle prediction training progress — 6 chunks per hour*
+
+![6 Chunks CO2 Feature Importance](6_chunks/all_feature_importance_co2.png)
+*Feature importance for CO2 — 6 chunks per hour*
+
+![6 Chunks 0.3um Feature Importance](6_chunks/all_feature_importance_0.3um.png)
+*Feature importance for 0.3µm particles — 6 chunks per hour*
+
+![6 Chunks Correlation Heatmap](6_chunks/linear_regression_results.png)
+*Correlation matrix heatmap — 6 chunks per hour*
+
+![0.3um vs Features](6_chunks/particle_vs_features_linear_fit.png)
+*0.3µm particle count vs individual weather features with linear fits*
+
+![CO2 vs Features](6_chunks/co2_vs_features_linear_fit.png)
 *CO2 vs individual weather features with linear fits*
 
 ## Project Structure
@@ -179,11 +203,3 @@ python models/no_history_xgb/xgboost_0.3um.py
 ```bash
 python analysis/linear_regression_analysis.py
 ```
-
-## To Do
-
-Items from [to_do.txt](to_do.txt):
-
-1. Add time of day as another input variable
-2. Create script to do time averages and cut down on the number of rows
-3. Rerun models with attention to history and with time averages
